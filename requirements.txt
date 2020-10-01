@@ -1,0 +1,8 @@
+numpy
+spacy
+pandas
+bs4
+tqdm
+requests
+networkx
+nltk
