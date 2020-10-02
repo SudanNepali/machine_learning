@@ -1,26 +1,27 @@
-from bs4 import BeautifulSoup
 import requests
 import re
-import string
-"""Scrapping Text from onlinekhabar"""
-html=requests.get('https://english.onlinekhabar.com/things-not-to-do-while-trekking-in-nepali-himalayas.html').content
-unicode_str = html.decode("utf8")
-encoded_str = unicode_str.encode("ascii",'ignore')
-news_soup = BeautifulSoup(encoded_str, "html.parser")
-a_text = news_soup.find_all('p')
-scrapped_text=[re.sub(r'<.+?>',r'',str(a)) for a in a_text]
-scrapped=str(scrapped_text)
-#print(scrapped_text)
-"""Cleaning the text for further operations using"""
+from bs4 import BeautifulSoup
 import spacy
-from spacy import displacy
-nlp=spacy.load("en_core_web_sm")
-#doc=nlp(scrapped)
-#for sent in doc.sents:
-    #for tok in sent:
-        #print(tok.text,'...',tok.dep_)
+nlp = spacy.load('en_core_web_sm')
+from spacy.matcher import Matcher
+from spacy.tokens import Span
+import matplotlib.pyplot as plt
+import pandas as pd
+import networkx as nx
+from tqdm import tqdm
+"""scrapping text from the given webpage"""
+link='https://english.onlinekhabar.com/going-to-annapurna-region-first-go-to-dhampus-instead.html'
+link1='https://en.wikipedia.org/wiki/Nepal'
+def scrapping(link):
+    html=requests.get(link).content
+    unicode_str = html.decode("utf8")
+    encoded_str = unicode_str.encode("ascii", 'ignore')
+    news_soup = BeautifulSoup(encoded_str, "html.parser")
+    a_text = news_soup.find_all('p')
+    scrapped_text = [re.sub(r'<.+?>', r'', str(a)) for a in a_text]
+    return scrapped_text
+'''preprocessing the text and extracting entity pairs'''
 
-'''Extracting subject objects entities modifiers'''
 def get_entities(sent):
     ent1 = ""
     ent2 = ""
@@ -57,15 +58,8 @@ def get_entities(sent):
             prv_tok_text = tok.text
     return [ent1.strip(), ent2.strip()]
 
-entity_pairs = []
-from tqdm import tqdm
-for i in tqdm(scrapped_text):
-  entity_pairs.append(get_entities(i))
+"""Extracting relations"""
 
-#print(entity_pairs[10:20])
-
-'''building relations'''
-from spacy.matcher import Matcher
 def get_relation(sent):
 
   doc = nlp(sent)
@@ -88,5 +82,19 @@ def get_relation(sent):
 
   return(span.text)
 
-relations = [get_relation(i) for i in tqdm(scrapped_text)]
-print(relations[:10])
+
+entity_pairs = []
+from tqdm import tqdm
+for i in tqdm(scrapping(link1)):
+  entity_pairs.append(get_entities(i))
+relations = [get_relation(i) for i in tqdm(scrapping(link1))]
+
+"""plotting the graph"""
+source = [i[0] for i in entity_pairs]
+target = [i[1] for i in entity_pairs]
+kg_df = pd.DataFrame({'source': source, 'target': target, 'edge': relations})
+db = nx.from_pandas_edgelist(kg_df, "source", "target", 'edge', create_using=nx.MultiDiGraph())
+plt.figure(figsize=(15,15))
+pos = nx.spring_layout(db)
+nx.draw(db, with_labels=True, node_color='skyblue', edge_cmap=plt.cm.Blues, pos = pos)
+plt.show()
