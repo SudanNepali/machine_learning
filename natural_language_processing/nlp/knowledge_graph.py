@@ -1,3 +1,6 @@
+import nltk
+from nltk import sent_tokenize, PorterStemmer, WordNetLemmatizer
+from nltk.corpus import stopwords
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -10,8 +13,9 @@ import pandas as pd
 import networkx as nx
 from tqdm import tqdm
 """scrapping text from the given webpage"""
-link='https://english.onlinekhabar.com/going-to-annapurna-region-first-go-to-dhampus-instead.html'
+link0='https://english.onlinekhabar.com/going-to-annapurna-region-first-go-to-dhampus-instead.html'
 link1='https://en.wikipedia.org/wiki/Nepal'
+link3='https://en.wikipedia.org/wiki/Kathmandu_Valley'
 def scrapping(link):
     html=requests.get(link).content
     unicode_str = html.decode("utf8")
@@ -35,27 +39,29 @@ def get_entities(sent):
 
 
     for tok in nlp(sent):
-        if tok.dep_ != "punct":
-            if tok.dep_ == "compound":
-                prefix = tok.text
-                if prv_tok_dep == "compound":
-                    prefix = prv_tok_text + " " + tok.text
-            if tok.dep_.endswith("mod") == True:
-                modifier = tok.text
-                if prv_tok_dep == "compound":
-                    modifier = prv_tok_text + " " + tok.text
+        stop_words = set(stopwords.words('english'))
+        if tok not in stop_words:
+            if tok.dep_ != "punct":
+                if tok.dep_ == "compound":
+                    prefix = tok.text
+                    if prv_tok_dep == "compound":
+                        prefix = prv_tok_text + " " + tok.text
+                if tok.dep_.endswith("mod") == True:
+                    modifier = tok.text
+                    if prv_tok_dep == "compound":
+                        modifier = prv_tok_text + " " + tok.text
 
-            if tok.dep_.find("subj") == True:
-                ent1 = modifier + " " + prefix + " " + tok.text
-                prefix = ""
-                modifier = ""
-                prv_tok_dep = ""
-                prv_tok_text = ""
+                if tok.dep_.find("subj") == True:
+                    ent1 = modifier + " " + prefix + " " + tok.text
+                    prefix = ""
+                    modifier = ""
+                    prv_tok_dep = ""
+                    prv_tok_text = ""
 
-            if tok.dep_.find("obj") == True:
-                ent2 = modifier + " " + prefix + " " + tok.text
-            prv_tok_dep = tok.dep_
-            prv_tok_text = tok.text
+                if tok.dep_.find("obj") == True:
+                    ent2 = modifier + " " + prefix + " " + tok.text
+                prv_tok_dep = tok.dep_
+                prv_tok_text = tok.text
     return [ent1.strip(), ent2.strip()]
 
 """Extracting relations"""
@@ -83,18 +89,40 @@ def get_relation(sent):
   return(span.text)
 
 
-entity_pairs = []
-from tqdm import tqdm
-for i in tqdm(scrapping(link1)):
-  entity_pairs.append(get_entities(i))
-relations = [get_relation(i) for i in tqdm(scrapping(link1))]
-
 """plotting the graph"""
-source = [i[0] for i in entity_pairs]
-target = [i[1] for i in entity_pairs]
-kg_df = pd.DataFrame({'source': source, 'target': target, 'edge': relations})
-db = nx.from_pandas_edgelist(kg_df, "source", "target", 'edge', create_using=nx.MultiDiGraph())
-plt.figure(figsize=(15,15))
-pos = nx.spring_layout(db)
-nx.draw(db, with_labels=True, node_color='skyblue', edge_cmap=plt.cm.Blues, pos = pos)
-plt.show()
+def plot_graph(link):
+    entity_pairs = []
+    from tqdm import tqdm
+    for i in tqdm(scrapping(link)):
+      entity_pairs.append(get_entities(i))
+    relations = [get_relation(i) for i in tqdm(scrapping(link))]
+    porter = PorterStemmer()
+    lemma=WordNetLemmatizer()
+    source1 = [i[0] for i in entity_pairs]
+    source2=[lemma.lemmatize(word) for word in source1]
+    source=[porter.stem(word) for word in source1]
+    target1 = [i[1] for i in entity_pairs]
+    target2=[lemma.lemmatize(word) for word in target1]
+    target=[porter.stem(word) for word in target1]
+
+    kg_df = pd.DataFrame({'source': source2, 'target': target2, 'edge': relations})
+    db = nx.from_pandas_edgelist(kg_df, "source",'target', edge_attr=True, create_using=nx.MultiDiGraph())
+    plt.figure(figsize=(15,15))
+    pos = nx.spring_layout(db)
+    nx.draw(db, with_labels=True, node_color='skyblue',node_size=1500, edge_cmap=plt.cm.Blues, pos = pos)
+    plt.show()
+    print(source)
+    while(True):
+        cond=input("do you wish to continue: y/n")
+        query = input("Enter your query:")
+        if query in source:
+            print(target[source.index(query)])
+        if cond=='n':
+            break
+
+plot_graph(link1)
+
+
+
+
+
