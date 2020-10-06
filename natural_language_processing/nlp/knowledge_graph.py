@@ -120,7 +120,7 @@ def plot_graph(link):
         if cond=='n':
             break
 
-plot_graph(link1)
+plot_graph(link0)
 
 
 
